@@ -1,4 +1,8 @@
-
+; ipc_v9958.a
+; 6509 ipc-code 0.67 for 8088 replica card (c) 2018 Michal Pleban
+; version 0.67a modified by Vossi (c) 02/2019 for the v9958-card
+; adds a software cursor in bios interrrupts
+; assemble with xa65 -> xa -OPETSCII -o 6509 ipc_v9958.a
 
 CPU_ACCESS_BANK = $1
 
@@ -16,6 +20,10 @@ key_buffer = $20
 file_name = $40
 load_addr = $43
 load_bank = $45
+
+; VDP variables
+;vdp_cursor_flag = $f5           ; > $00 = cursor already reverse
+vdp_cursor_char = $f6           ; character under cursor
 
 ;--------------------------------------------------------------------
 ; KERNAL variables
@@ -46,6 +54,11 @@ WstFlag = $3fa
 CRTC_RegNo = $d800
 CRTC_RegVal = $d801
 TPI1_ActIntReg = $de07
+
+; VDP addresses:
+VDPAddress  = $d900
+VDPRamWrite = VDPAddress        ; VDP ports
+VDPControl  = VDPAddress+1
 
 ;--------------------------------------------------------------------
 ; KERNAL routines
@@ -431,7 +444,20 @@ ipc_20_kbd_clear:
 ;--------------------------------------------------------------------
 
 ipc_12_screen_out:
-    ldx #$03
+    lda $cb                             ; load cursor column
+    clc
+    adc $c8                             ; add lowbyte screen line pointer
+    sta VDPControl                      ; write VRAM address lowbyte
+    lda #$00
+    adc $c9                             ; load highbyte screen line pointer + carry
+    and #$4f                            ; isolate low nibble + $dx to $4x for VRAM write
+    sta VDPControl                      ; write VRAM address highbyte
+    lda vdp_cursor_char                 ; safe char under cursor
+
+    ldx #$03                            ; inserted from jsr chkout for VDP wait
+
+    sta VDPRamWrite                     ; write char to VRAM
+
     jsr CHKOUT
     lda ipc_buffer+2
     jsr BSOUT
@@ -439,6 +465,22 @@ ipc_12_screen_out:
     sta QuoteSwitch
     sta InsertFlag
     jsr CLRCH
+
+    ldy $cb                             ; load cursor column
+    tya
+    clc
+    adc $c8                             ; add lowbyte screen line pointer
+    sta VDPControl                      ; write VRAM address lowbyte
+    lda #$00
+    adc $c9                             ; load highbyte screen line pointer + carry
+    and #$4f                            ; isolate low nibble + $dx to $4x for VRAM write
+    sta VDPControl                      ; write VRAM address highbyte
+    lda #$00
+    ora($c8),y                          ; load char under cursur from screen memory
+    sta vdp_cursor_char                 ; safe char under cursor
+    eor #$80                            ; reverse char
+    sta VDPRamWrite                     ; write char to VRAM
+
     clc
     jmp ipc_end
     
@@ -1206,6 +1248,7 @@ ipc_1d_console:
     bne console_not00
 
 ; Console function 00 - clear screen after & below cursor
+    jsr VdpCursorClear  ; clear cursor = write old char non-reverse
     ldx #$03
     jsr CHKOUT
     lda #$1b
@@ -1236,6 +1279,7 @@ erase_loop:
     jsr PLOT
 erase_end:
     jsr CLRCH
+    jsr VdpCursorSet    ; set cursor to screen = reverse new position
     rts
 
 console_not00:
@@ -1243,12 +1287,14 @@ console_not00:
     bne console_not01
     
 ; Console function 01 - set cursor position
+    jsr VdpCursorClear  ; clear cursor = write old char non-reverse
     lda ipc_buffer+3
     tay
     lda ipc_buffer+4
     tax
     clc
     jsr PLOT
+    jsr VdpCursorSet    ; set cursor to screen = reverse new position
     rts
 
 console_not01:
@@ -1267,6 +1313,7 @@ console_not02:
     bne console_not03
 
 ; Console function 03 - output CP437 character.
+    jsr VdpCursorClear  ; clear cursor = write old char non-reverse
 	lda RvsFlag
 	pha
 	lda ipc_buffer+4
@@ -1275,6 +1322,7 @@ console_not02:
 	jsr output_convert
 	pla
 	sta RvsFlag
+    jsr VdpCursorSet    ; set cursor to screen = reverse new position
 	jmp ipc_end
     
 console_not03:
@@ -1282,6 +1330,7 @@ console_not03:
     bne console_not04
     
 ; Console function 04 - delete line at cursor position.
+    jsr VdpCursorClear  ; clear cursor = write old char non-reverse
     lda #"d"            ; Esc+D - delete line
     bne delete_line
     lda #"i"
@@ -1297,6 +1346,7 @@ delete_line:
     ldy tmp_val
     clc
     jmp PLOT
+    jsr VdpCursorSet    ; set cursor to screen = reverse new position
 
 console_not04:
     rts
@@ -1330,3 +1380,33 @@ getin_end:
     clc
     rts
 
+VdpCursorSet:                       ; ***** print cursor and safe char under cursor *****
+    ldy $cb                             ; load cursor column
+    tya
+    clc
+    adc $c8                             ; add lowbyte screen line pointer
+    sta VDPControl                      ; write VRAM address lowbyte
+    lda #$00
+    adc $c9                             ; load highbyte screen line pointer + carry
+    and #$4f                            ; isolate low nibble + $dx to $4x for VRAM write
+    sta VDPControl                      ; write VRAM address highbyte
+    lda #$00
+    ora($c8),y                          ; load char under cursur from screen memory
+    sta vdp_cursor_char                 ; safe char under cursor
+    eor #$80                            ; reverse char
+    sta VDPRamWrite                     ; write char to VRAM
+    rts
+
+VdpCursorClear:                     ; ***** restore char under cursor position 
+    lda $cb                             ; load cursor column
+    clc
+    adc $c8                             ; add lowbyte screen line pointer
+    sta VDPControl                      ; write VRAM address lowbyte
+    lda #$00
+    adc $c9                             ; load highbyte screen line pointer + carry
+    and #$4f                            ; isolate low nibble + $dx to $4x for VRAM write
+    sta VDPControl                      ; write VRAM address highbyte
+    lda vdp_cursor_char                 ; safe char under cursor
+    nop
+    sta VDPRamWrite                     ; write char to VRAM
+    rts

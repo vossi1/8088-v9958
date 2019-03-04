@@ -1,4 +1,13 @@
 
-ipc.a
+ipc_v9958.a
 
 6509 ipc-code 0.67 for 8088 replica card (c) 2018 Michal Pleban
+version 0.67a modified by Vossi (c) 02/2019 for the v9958-card
+
+adds a software cursor in all bios screen-interrrupts
+
+assemble with xa65:
+	
+	xa -OPETSCII -o 6509 ipc_v9958.a
+
+result is a prg-file for the 8088 bootdisk: 6509 [.prg]
