@@ -23,7 +23,7 @@ file_name = $40
 load_addr = $43
 load_bank = $45
 
-; VDP variables
+; VDP variables in zero page free space
 vdp_cursor_char = $f6           ; character under cursor
 vdp_reverse = $f7               ; reverse flag for VdpFont
 vdp_copy_pointer = $f8;+$f9     ; pointer for VdpFont
@@ -238,8 +238,10 @@ vector_loop:
     iny
     cpy #8
     bne vector_loop
+    sei
     jsr VdpCopyPalette
-;    jsr VdpFont
+;   jsr VdpFont
+    cli
     lda #$0F
     sta CPU_ACCESS_BANK
     jmp RUNCOPRO
