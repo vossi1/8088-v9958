@@ -1,10 +1,19 @@
-
 ipc_v9958.a
 
 6509 ipc-code 0.67 for 8088 replica card (c) 2018 Michal Pleban
-version 0.67a modified by Vossi (c) 02/2019 for the v9958-card
+modified by Vossi (c) 03/2019 for the v9958-card
 
-adds a software cursor in all bios screen-interrrupts
+additonal files:
+- pcfont6x8	(prg-file with load address $a000)
+- boot		(prg-file for boot-disk - loads font before init)
+complete boot disk pcdos3.2 for v9958-card
+
+version 0.67b:
+- copy 6x8 CGA-pcfont to VRAM (already loaded by boot.prg in bank 1 at $a000)
+- copy CGA-color-palette to VDP
+
+version 0.67a:
+- adds a software cursor in all bios screen-interrrupts
 
 assemble with xa65:
 	

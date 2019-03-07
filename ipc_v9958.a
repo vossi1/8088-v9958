@@ -22,8 +22,9 @@ load_addr = $43
 load_bank = $45
 
 ; VDP variables
-;vdp_cursor_flag = $f5           ; > $00 = cursor already reverse
 vdp_cursor_char = $f6           ; character under cursor
+vdp_reverse = $f7               ; reverse flag for VdpFont
+vdp_copy_pointer = $f8;+$f9     ; pointer for VdpFont
 
 ;--------------------------------------------------------------------
 ; KERNAL variables
@@ -57,8 +58,12 @@ TPI1_ActIntReg = $de07
 
 ; VDP addresses:
 VDPAddress  = $d900
+PatternTable = $10              ; highbyte pattern-table address
+FontData = $a0                  ; highbyte font data load address in bank 1
+FontSize = $04                  ; higbyte font size
 VDPRamWrite = VDPAddress        ; VDP ports
 VDPControl  = VDPAddress+1
+VDPPalette  = VDPAddress+2
 
 ;--------------------------------------------------------------------
 ; KERNAL routines
@@ -231,6 +236,8 @@ vector_loop:
     iny
     cpy #8
     bne vector_loop
+    jsr VdpFont
+    jsr VdpCopyPalette
     lda #$0F
     sta CPU_ACCESS_BANK
     jmp RUNCOPRO
@@ -1410,3 +1417,48 @@ VdpCursorClear:                     ; ***** restore char under cursor position
     nop
     sta VDPRamWrite                     ; write char to VRAM
     rts
+
+VdpFont:                            ; ***** copy PC-font to pattern generator table *****
+        lda # FontData                      ; load highbyte font data address
+        sta vdp_copy_pointer+1              ; set highbyte font data
+        ldy #$00
+        sty VDPControl                      ; write lowbyte pattern table to VDP, Y already $00
+        lda # PatternTable | $40            ; highbyte pattern table or $40 to start VRAM write 
+        sta VDPControl                      ; write highbyte pattern table to VDP
+        sty vdp_reverse                     ; resert data reverse byte
+        sty vdp_copy_pointer                ; set lowbyte font data to $00 
+        ldx # FontSize * 2                  ; copy 2 x font (normal+reverse)
+loop_font:
+        lda(vdp_copy_pointer),y             ; load font data 
+        eor vdp_reverse                     ; reverse second half of font with eor
+        sta VDPRamWrite                     ; write to VDP
+        iny
+        bne loop_font
+        inc vdp_copy_pointer+1              ; increase higbyte font pointer
+        dex
+        beq end_font                        ; end of 2 x font data reached?
+        cpx # FontSize                      ; first "not reverse" font finished? 
+        bne loop_font
+        lda # FontData                      ; start reverse font at current font start address agin
+        sta vdp_copy_pointer+1              ; set highbyte font data start for second "reverse font"
+        lda #$ff
+        sta vdp_reverse                     ; set reverse xor byte
+        bne loop_font
+end_font:
+        rts
+
+VdpCopyPalette:                     ; * copy CGA color-palette *****
+        lda VdpPaletteData,x                ; X already 0, palette pointer already 0 from init-data
+        sta VDPPalette
+        inx
+        cpx # VdpPaletteDataEnd - VdpPaletteData
+        bne VdpCopyPalette 
+        rts
+
+; ***** Color Palette - 16 colors, 2 byte/color RB, 0G each 3bit -> CGA-colors *****
+VdpPaletteData:
+    .byte $00,$00,$05,$00,$00,$05,$05,$05   ;   0=black     1=blue      2=green       3=cyan
+    .byte $50,$00,$55,$00,$50,$03,$55,$05   ;   4=red       5=magenta   6=brown       7=lightgrey
+    .byte $33,$03,$37,$03,$33,$07,$37,$07   ;   8=grey      9=lightblue a=lightgreen  b=lightcyan
+    .byte $73,$03,$77,$03,$73,$07,$77,$07   ;   c=lightred  d=ltmagenta e=yellow      f=white
+VdpPaletteDataEnd:
