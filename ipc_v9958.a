@@ -6,8 +6,6 @@
 
 CPU_ACCESS_BANK = $1
 
-VDPCOLOR = $c0
-
 ;--------------------------------------------------------------------
 ; Zero page variables
 ;--------------------------------------------------------------------
@@ -24,9 +22,10 @@ load_addr = $43
 load_bank = $45
 
 ; VDP variables in zero page free space
-vdp_cursor_char = $f6           ; character under cursor
-vdp_reverse = $f7               ; reverse flag for VdpFont
-vdp_copy_pointer = $f8;+$f9     ; pointer for VdpFont
+vdp_color           = $f4          ; color register 7 mirror
+vdp_cursor_char     = $f6          ; character under cursor
+vdp_reverse         = $f7          ; reverse flag for VdpFont
+vdp_copy_pointer    = $f8;+$f9     ; pointer for VdpFont
 
 ;--------------------------------------------------------------------
 ; KERNAL variables
@@ -238,10 +237,7 @@ vector_loop:
     iny
     cpy #8
     bne vector_loop
-    sei
-    jsr VdpCopyPalette
-;   jsr VdpFont
-    cli
+    jsr VdpInit
     lda #$0F
     sta CPU_ACCESS_BANK
     jmp RUNCOPRO
@@ -1422,12 +1418,13 @@ VdpCursorClear:                     ; ***** restore char under cursor position
     sta VDPRamWrite                     ; write char to VRAM
     rts
 
-VdpCopyPalette:                     ; * copy CGA color-palette *****
+VdpInit:                            ; * copy CGA color-palette *****
+        sei
         lda #$00                            ; reset palette pointer to color 0
         sta VDPControl
         lda # (16 | $80)                    ; 
         sta VDPControl                      ; write register 16 palette pointer
-        pha
+        pha                                 ; wait 3,5 us for VDP
         pla
 loop_palette:
         lda VdpPaletteData,x                ; X already 0, palette pointer already 0 from init-data
@@ -1435,13 +1432,12 @@ loop_palette:
         inx
         cpx # (VdpPaletteDataEnd - VdpPaletteData)
         bne loop_palette 
-        lda # VDPCOLOR                      ; load color
+        
+        lda vdp_color                       ; load color from $F4 color mirror
         sta VDPControl                      ; write new color value
         lda # (7 | $80)                     ; 
         sta VDPControl                      ; write register 7
-        rts
-
-VdpFont:                            ; ***** copy PC-font to pattern generator table *****
+                                    ; * copy PC-font to pattern generator table *****
         lda # FontData                      ; load highbyte font data address
         sta vdp_copy_pointer+1              ; set highbyte font data
         ldy #$00
@@ -1468,6 +1464,7 @@ loop_font:
         sta vdp_reverse                     ; set reverse xor byte
         bne loop_font
 end_font:
+        cli
         rts
 
 ; ***** Color Palette - 16 colors, 2 byte/color RB, 0G each 3bit -> CGA-colors *****

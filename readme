@@ -8,6 +8,10 @@ additonal files:
 - boot		(prg-file for boot-disk - loads font before init)
 complete boot disk pcdos3.2 for v9958-card
 
+version 0.67c:
+- fixed some bugs
+- added startup color mirror in $F4 Bank 15
+
 version 0.67b:
 - copy 6x8 CGA-pcfont to VRAM (already loaded by boot.prg in bank 1 at $a000)
 - copy CGA-color-palette to VDP
