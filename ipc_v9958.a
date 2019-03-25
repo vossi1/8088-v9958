@@ -447,7 +447,7 @@ ipc_20_kbd_clear:
     .byt $00,$4b
     
 ;--------------------------------------------------------------------
-; IPC function 12 - write to screen.
+; IPC function 12 - write to screen. Added V9958-Card support!
 ;--------------------------------------------------------------------
 
 ipc_12_screen_out:
@@ -1247,7 +1247,7 @@ ipc_1b_serial_config:
     jmp ipc_end
     
 ;--------------------------------------------------------------------
-; IPC function 1D - console services.
+; IPC function 1D - console services. Added V9958-Card support!
 ;--------------------------------------------------------------------
     
 ipc_1d_console:
@@ -1352,8 +1352,8 @@ delete_line:
     ldx CursorLine
     ldy tmp_val
     clc
-    jmp PLOT
-    jsr VdpCursorSet    ; set cursor to screen = reverse new position
+    jsr PLOT
+    jmp VdpCursorSet    ; set cursor to screen = reverse new position
 
 console_not04:
     rts
@@ -1386,6 +1386,10 @@ getin_loop:
 getin_end:
     clc
     rts
+
+;--------------------------------------------------------------------
+; V9958-Card subroutines
+;--------------------------------------------------------------------
 
 VdpCursorSet:                       ; ***** print cursor and safe char under cursor *****
     ldy $cb                             ; load cursor column
@@ -1421,6 +1425,7 @@ VdpCursorClear:                     ; ***** restore char under cursor position
 VdpInit:                            ; * copy CGA color-palette *****
         sei
         lda #$00                            ; reset palette pointer to color 0
+        tax
         sta VDPControl
         lda # (16 | $80)                    ; 
         sta VDPControl                      ; write register 16 palette pointer
@@ -1433,7 +1438,7 @@ loop_palette:
         cpx # (VdpPaletteDataEnd - VdpPaletteData)
         bne loop_palette 
         
-        lda vdp_color                       ; load color from $F4 color mirror
+        lda vdp_color                       ; load color from color mirror variable
         sta VDPControl                      ; write new color value
         lda # (7 | $80)                     ; 
         sta VDPControl                      ; write register 7

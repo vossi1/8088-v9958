@@ -8,6 +8,11 @@ additonal files:
 - boot		(prg-file for boot-disk - loads font before init)
 complete boot disk pcdos3.2 for v9958-card
 
+version 0.67d:
+- cga palette works
+- startup color poked to 244 in boot.prg 
+- 6x8 pc-font with 128 chars works
+
 version 0.67c:
 - fixed some bugs
 - added startup color mirror in $F4 Bank 15
